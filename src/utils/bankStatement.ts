@@ -4,6 +4,7 @@ export interface BankStatementRow {
   date: string
   description: string
   reference: string
+  paymentReference?: string
   bankTransactionID?: string
   amount: number
   runningBalance?: number
@@ -244,7 +245,8 @@ function parseWorksheet(cells: unknown[][]): BankStatementRow[] {
       if (type === null || !Number.isFinite(amount) || amount <= 0) continue
       const rawBalance = parseAmount(get(map.balance))
       const runningBalance = Number.isFinite(rawBalance) ? rawBalance : undefined
-      rows.push({ runningBalance, date, description, reference, amount, type, donorName, remark, bankTransactionID: cellString(get(map.transactionID)).trim(), purpose: cellString(get(map.purpose)).trim(), donorPhone: cellString(get(map.donorPhone)).trim() })
+      const paymentReference = cellString(get(map.reference)).trim() || description.match(/\bUPI\/(\d{12})(?:\/|$)/i)?.[1]
+      rows.push({ paymentReference, runningBalance, date, description, reference, amount, type, donorName, remark, bankTransactionID: cellString(get(map.transactionID)).trim(), purpose: cellString(get(map.purpose)).trim(), donorPhone: cellString(get(map.donorPhone)).trim() })
     }
     if (rows.length > 0) return rows
   }

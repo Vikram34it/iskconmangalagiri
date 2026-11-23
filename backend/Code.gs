@@ -1189,7 +1189,7 @@ function createRecord_(sheetName, headers, record, prefix, module, required) {
       var reference = String(record.TransactionReference || '').trim().toLowerCase();
       if (reference && readDonations_().some(function (receipt) {
         return (receipt.BankImportKey || isElectronicReceipt_(receipt.PaymentMethod)) &&
-          String(receipt.TransactionReference || '').trim().toLowerCase() === reference &&
+          receiptReferences_(receipt).indexOf(reference) >= 0 &&
           ledgerAccount_(receipt, bankAccounts) === destination.AccountName;
       })) throw new Error('This bank reference already has a donation receipt. Open it in Donations to update its details.');
       record.AccountID = destination.AccountID;
@@ -1323,14 +1323,26 @@ function bulkCreateRecords_(sheetName, headers, records, prefix, module, require
         }
       }
       if (!/^[a-f0-9]{64}$/.test(record.BankImportKey)) throw new Error('Invalid bank import key');
-      if (importKeys[record.BankImportKey]) continue;
+      if (importKeys[record.BankImportKey]) {
+        if (module === 'donation' && /^Bank payment reference: [^\r\n]+$/.test(record.Notes || '')) {
+          var oldIndex = data.findIndex(function (d) { return d.BankImportKey === record.BankImportKey; });
+          var old = data[oldIndex];
+          if (old && notDeleted_(old) && old.AccountID === record.AccountID && Number(old.Amount) === Number(record.Amount) &&
+              !/^Bank payment reference: /m.test(old.Notes || '')) {
+            old.Notes = [old.Notes, record.Notes].filter(Boolean).join('\n');
+            sheet.getRange(oldIndex + 2, headers.indexOf('Notes') + 1).setValue(sheetValue_(old.Notes));
+          }
+        }
+        continue;
+      }
       if (module === 'donation') linkImportedDonor_(record, importPeople);
       if (!importAccounts.some(function (account) { return String(account.AccountID) === String(record.AccountID) && String(account.Type).toLowerCase() === 'bank'; })) {
         throw new Error('Bank import account no longer exists');
       }
       var reference = String(record.TransactionReference || record.ReferenceID || '').trim().toLowerCase();
+      var incomingRefs = module === 'donation' ? receiptReferences_(record) : [reference];
       var isCredit = module === 'donation' || (module === 'transaction' && record.IncomeOrExpense === 'income');
-      if (isCredit && reference) {
+      if (isCredit && incomingRefs.length) {
         var matches = [
           { sheetKey: 'donations', rows: collectionCredits, ref: function (row) { return row.TransactionReference; } },
           { sheetKey: 'transactions', rows: collectionDeposits, ref: function (row) { return String(row.Description).replace(/^Cash handover: /, ''); } }
@@ -1339,12 +1351,14 @@ function bulkCreateRecords_(sheetName, headers, records, prefix, module, require
             return (source.sheetKey === 'donations'
               ? ledgerAccount_(entry.row, importAccounts) === ledgerAccount_(record, importAccounts)
               : String(entry.row.AccountID) === String(record.AccountID)) &&
-              String(source.ref(entry.row)).trim().toLowerCase() === reference;
+              (source.sheetKey === 'donations' ? receiptReferences_(entry.row) : [String(source.ref(entry.row)).trim().toLowerCase()])
+                .some(function (value) { return incomingRefs.indexOf(value) >= 0; });
           }).map(function (entry) { return { sheetKey: source.sheetKey, entry: entry }; });
         });
         if (matches.length) {
           var match = matches[0];
           if (matches.length !== 1 || match.entry.row.BankImportKey ||
+              (match.sheetKey === 'donations' && record.DonorID && match.entry.row.DonorID && record.DonorID !== match.entry.row.DonorID) ||
               Math.round(Number(match.entry.row.Amount) * 100) !== Math.round(Number(record.Amount) * 100)) {
             throw new Error('Bank reference ' + reference + ' conflicts with an existing receipt or cash deposit.');
           }
@@ -1579,13 +1593,20 @@ function getCollectionPlans_(body, excludeCollectionID) {
   });
 }
 
+function receiptReferences_(receipt) {
+  var references = [receipt.TransactionReference];
+  var alternate = /^Bank payment reference: ([^\r\n]+)$/m.exec(String(receipt.Notes || ''));
+  if (receipt.BankImportKey && alternate) references.push(alternate[1]);
+  return references.map(function (value) { return String(value || '').trim().toLowerCase(); }).filter(Boolean);
+}
+
 function linkedCollectionBankReceipt_(details, donations) {
   if (!details.reference || details.method === 'Cash') return false;
   var reference = details.reference.toLowerCase();
   return donations.some(function (donation) {
     return !donation.CollectionID && donation.BankImportKey && donation.InstallmentPlanID === details.planID &&
       String(donation.DonorID) === details.donorID &&
-      String(donation.TransactionReference).trim().toLowerCase() === reference &&
+      receiptReferences_(donation).indexOf(reference) >= 0 &&
       Math.round(Number(donation.Amount) * 100) === Math.round(details.amount * 100);
   });
 }
@@ -1975,7 +1996,7 @@ function reviewCollection_(body, user) {
       if (data.method !== 'Cash') {
         var ref = data.reference.toLowerCase();
         matched = donations.filter(function (d) {
-          return notDeleted_(d) && String(d.TransactionReference).trim().toLowerCase() === ref;
+          return notDeleted_(d) && receiptReferences_(d).indexOf(ref) >= 0;
         });
         var bankMovement = readAll_(CONFIG.sheetNames.transactions, HEADERS.transactions).some(function (t) {
           return t.BankImportKey && t.IncomeOrExpense === 'income' && String(t.ReferenceID).trim().toLowerCase() === ref;
@@ -1994,6 +2015,12 @@ function reviewCollection_(body, user) {
               (existing.InstallmentPlanID && existing.InstallmentPlanID !== data.planID)) {
             throw new Error('An existing receipt uses this reference. Review it in Donations before approving.');
           }
+        } else if (data.donorID && donations.some(function (d) {
+          return notDeleted_(d) && d.BankImportKey && !d.CollectionID && d.DonorID === data.donorID &&
+            d.AccountID === account.AccountID && Math.round(Number(d.Amount) * 100) === Math.round(data.amount * 100) &&
+            (!d.InstallmentPlanID || d.InstallmentPlanID === data.planID);
+        }) && body.distinctPayment !== true) {
+          throw new Error('An imported receipt already matches this donor and amount. Select it or confirm this is a separate payment.');
         } else if (body.confirmBankCredit !== true) {
           throw new Error('Verify that the payment has credited the selected bank account.');
         }

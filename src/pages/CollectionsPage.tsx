@@ -954,6 +954,7 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
   const [date, setDate] = useState(todayStr)
   const [reference, setReference] = useState('')
   const [paymentSource, setPaymentSource] = useState('')
+  const [distinctPayment, setDistinctPayment] = useState(false)
   const postedReceipt = donations.find(d => d.collectionID === row.id)
   const linkedBankReceipt = postedReceipt?.bankImportKey ? postedReceipt : undefined
   const receiptAccount = pending ? accountID : postedReceipt?.accountID || accountID
@@ -988,7 +989,7 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
           {linkedBankReceipt ? <p>Already linked to bank receipt {linkedBankReceipt.receiptNumber}.</p>
             : !pending && !imported.length ? <p>No eligible imported receipt for {formatCurrency(Number(data.amount))}. Check the bank receipt in Donations for its donor, account, amount and any existing commitment link.</p>
             : <>
-          <Select value={paymentSource} onChange={e => { setPaymentSource(e.target.value); setConfirmed(false) }}>
+          <Select value={paymentSource} onChange={e => { setPaymentSource(e.target.value); setConfirmed(false); setDistinctPayment(false) }}>
             <option value="">Select payment record</option>
             {imported.map(d => <option key={d.donationID} value={d.donationID}>{formatDate(d.date)} · {d.donorName} · {formatCurrency(d.amount)} · {d.transactionReference || d.receiptNumber}</option>)}
             {pending && <option value="new">New bank payment</option>}
@@ -1007,6 +1008,10 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
           </Select>
         </Field>
       )}
+      {pending && paymentSource === 'new' && imported.length > 0 && <label className="flex gap-2 text-sm">
+        <input type="checkbox" checked={distinctPayment} onChange={e => setDistinctPayment(e.target.checked)} />
+        I checked the imported receipts above and confirmed a separate bank credit for this payment.
+      </label>}
       {pending && !materials && !cash && <label className="flex gap-2 text-sm">
         <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
         I verified this reference and amount against the selected bank account.
@@ -1015,7 +1020,7 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
         <>
           <Field label="Review note" hint="Required when returning or rejecting a collection."><Input value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} /></Field>
           <div className="flex flex-wrap gap-2">
-            <Button disabled={busy || (!materials && !cash && (!accountID || !confirmed || !paymentSource))} onClick={() => save(() => dataService.reviewCollection(row.id, 'Approved', note, accountID, confirmed, paymentSource === "new" ? undefined : paymentSource))}>Approve</Button>
+            <Button disabled={busy || (!materials && !cash && (!accountID || !confirmed || !paymentSource || (paymentSource === "new" && imported.length > 0 && !distinctPayment)))} onClick={() => save(() => dataService.reviewCollection(row.id, 'Approved', note, accountID, confirmed, paymentSource === "new" ? undefined : paymentSource, distinctPayment))}>Approve</Button>
             <Button variant="secondary" disabled={busy || !note.trim()} onClick={() => save(() => dataService.reviewCollection(row.id, 'Needs correction', note, '', false))}>Return for correction</Button>
             <Button variant="secondary" disabled={busy || !note.trim()} onClick={() => save(() => dataService.reviewCollection(row.id, 'Rejected', note, '', false))}>Reject</Button>
           </div>

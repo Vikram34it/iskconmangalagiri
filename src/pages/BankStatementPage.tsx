@@ -205,7 +205,7 @@ export function BankStatementPage() {
             paymentMethod: paymentMethodFor(r),
             transactionReference: r.reference || '',
             receivedBy: user?.name || '',
-            notes: '',
+            notes: r.paymentReference ? 'Bank payment reference: ' + r.paymentReference : '',
           })
         } else {
           expenses.push({
