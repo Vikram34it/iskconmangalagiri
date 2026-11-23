@@ -23,7 +23,7 @@ function emptyCollection(): CollectionDetails {
     donorID: '', name: '', phone: '', email: '', address: '', office: '', mailing: 'Residence',
     pan: '', aadhaar: '', gotram: '', prayer1: '', prayerDate1: '', prayer2: '', prayerDate2: '', referrals: '',
     seva: '', category: constructionPurpose, kind: 'one-time',
-    planID: '', date: todayStr(), method: 'Cash', reference: '', item: '', unit: '', delivery: 'Promised', site: '',
+    planID: '', date: todayStr(), firstDue: todayStr(), method: 'Cash', reference: '', item: '', unit: '', delivery: 'Promised', site: '',
   }
 }
 
@@ -573,21 +573,28 @@ function CollectionForm({ entry, paymentFor, representative, onCancel, onSaved }
                   {result.name} {result.phoneEnd && <span className="text-slate-500">· mobile ending {result.phoneEnd}</span>}
                 </button>
               ))}
-              {!enrolling && <Button type="button" variant="secondary" onClick={() => setEnrolling(true)}>Enroll a new donor</Button>}
+              {!enrolling && <Button type="button" variant="secondary" onClick={() => {
+                const value = query.trim()
+                if (/^\d{10}$/.test(value)) change('phone', value)
+                else if (value && !/\d/.test(value)) change('name', value)
+                setEnrolling(true)
+              }}>Add new donor</Button>}
             </>
           )}
           {enrolling && !donorSelected && (
             <div className="grid gap-3 sm:grid-cols-2">
               {field('Full name', 'name', { required: true, maxLength: 150 })}
               {field('Mobile number', 'phone', { required: true, type: 'tel', maxLength: 30, placeholder: '10-digit Indian mobile number' })}
+              <details className="sm:col-span-2"><summary className="cursor-pointer">Add other donor details (optional)</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
               {field('Email', 'email', { type: 'email', maxLength: 254 })}
-              {field('Residential address', 'address', { required: true, maxLength: 600 })}
+              {field('Residential address', 'address', { maxLength: 600 })}
               {field('Office address', 'office', { required: data.mailing === 'Office', maxLength: 600 })}
               <Field label="Preferred mailing address" required>
                 <Select value={data.mailing} onChange={(e) => change('mailing', e.target.value)}><option>Residence</option><option>Office</option></Select>
               </Field>
-              {field('Aadhaar number', 'aadhaar', { required: true, type: 'password', inputMode: 'numeric', pattern: '[0-9]{12}', maxLength: 12, autoComplete: 'off' })}
-              {field('PAN', 'pan', { required: true, type: 'password', pattern: '[A-Za-z]{5}[0-9]{4}[A-Za-z]', maxLength: 10, autoComplete: 'off' })}
+              {field('Aadhaar number', 'aadhaar', { type: 'password', inputMode: 'numeric', pattern: '[0-9]{12}', maxLength: 12, autoComplete: 'off' })}
+              {field('PAN', 'pan', { type: 'password', pattern: '[A-Za-z]{5}[0-9]{4}[A-Za-z]', maxLength: 10, autoComplete: 'off' })}
+              </div></details>
               <details className="space-y-3 sm:col-span-2">
                 <summary className="cursor-pointer font-medium">Prayer occasions and referrals</summary>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -619,11 +626,7 @@ function CollectionForm({ entry, paymentFor, representative, onCancel, onSaved }
                   <option value="">Select seva</option>{sevas.map((seva) => <option key={seva}>{seva}</option>)}
                 </Select>
               </Field>
-              <Field label="Purpose of donation" hint={data.category === constructionPurpose
-                ? 'All new collections are for temple construction only.'
-                : 'Original purpose of this collection.'}>
-                <Input value={data.category} readOnly />
-              </Field>
+              <p className="text-sm text-slate-600">For temple construction</p>
               {field('Collection date', 'date', { required: true, type: 'date' })}
               {data.kind === 'installment' && (
                 <div className="space-y-2 sm:col-span-2">
@@ -681,13 +684,14 @@ function CollectionForm({ entry, paymentFor, representative, onCancel, onSaved }
                 <>
                   {field('Amount received (₹)', 'amount',
                     { required: true, inputMode: data.kind === 'installment' && existingCommitment ? 'decimal' : 'numeric', placeholder: '10000' })}
+                  {paymentFor && Number(paymentFor.details.amount) > 0 && <Button type="button" variant="secondary" onClick={() => change('amount', String(paymentFor.details.amount))}>Use last payment amount · {formatCurrency(Number(paymentFor.details.amount))}</Button>}
                   <Field label="Payment method" required>
                     <Select required value={data.method} onChange={(e) => change('method', e.target.value)}>
                       <option value="">Select payment method</option>
                       {methods.map((method) => <option key={method}>{method}</option>)}
                     </Select>
                   </Field>
-                  {data.method && data.method !== 'Cash' && field('Payment reference', 'reference', { required: true, maxLength: 120, placeholder: 'Copy the transaction ID from the payment receipt' })}
+                  {data.method && data.method !== 'Cash' && <details className="sm:col-span-2"><summary className="cursor-pointer">Add bank reference (optional)</summary>{field('Bank reference', 'reference', { maxLength: 120 })}</details>}
                 </>
               )}
             </div>
@@ -966,9 +970,15 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
   const postedReceipt = donations.find(d => d.collectionID === row.id)
   const linkedBankReceipt = postedReceipt?.bankImportKey ? postedReceipt : undefined
   const receiptAccount = pending ? accountID : postedReceipt?.accountID || accountID
-  const imported = donations.filter(d => d.bankImportKey && !d.deleted && !d.collectionID &&
-    d.accountID === receiptAccount && Number(d.amount) === Number(data.amount) &&
-    (!d.donorID || d.donorID === data.donorID) && (!d.installmentPlanID || d.installmentPlanID === data.planID))
+  const sameAmount = donations.filter(d => d.bankImportKey && !d.deleted && Number(d.amount) === Number(data.amount))
+  function unavailableReason(d: (typeof donations)[number]) {
+    if (d.collectionID) return 'Already linked to a collection'
+    if (!receiptAccount || d.accountID !== receiptAccount) return 'Different bank account'
+    if (d.donorID && d.donorID !== data.donorID) return data.donorID ? 'Different donor profile' : 'Receipt has a donor profile; collection uses a new enrollment'
+    if (d.installmentPlanID && d.installmentPlanID !== data.planID) return 'Already linked to another commitment'
+    return ''
+  }
+  const imported = sameAmount.filter(d => !unavailableReason(d))
   const [confirmed, setConfirmed] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
@@ -992,19 +1002,6 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
 
   return (
     <div className="space-y-4">
-      {!materials && !cash && (pending || row.status === 'Approved') && (
-        <Field label={pending ? 'Match imported bank credit' : 'Correct a payment counted twice'}>
-          {linkedBankReceipt ? <p>Already linked to bank receipt {linkedBankReceipt.receiptNumber}.</p>
-            : !imported.length ? <p>No eligible imported receipt for {formatCurrency(Number(data.amount))}. Import the bank statement, then check the receipt in Donations for its donor, account, amount and any existing commitment link.</p>
-            : <>
-          <Select value={paymentSource} onChange={e => { setPaymentSource(e.target.value); setConfirmed(false) }}>
-            <option value="">Select payment record</option>
-            {imported.map(d => <option key={d.donationID} value={d.donationID}>{formatDate(d.date)} · {d.donorName} · {formatCurrency(d.amount)} · {d.transactionReference || d.receiptNumber}</option>)}
-          </Select>
-          {!pending && <Button disabled={busy || !paymentSource} onClick={() => save(() => dataService.reviewCollection(row.id, 'Approved', '', accountID, true, paymentSource))}>Replace duplicate with selected bank receipt</Button>}
-          </>}
-        </Field>
-      )}
       <CollectionRecordDetails row={row} />
       {row.status !== 'Cancelled' && <CollectionMessage row={row} />}
       {((pending && !materials && !cash) || handover) && (
@@ -1015,9 +1012,30 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
           </Select>
         </Field>
       )}
+      {!materials && !cash && (pending || row.status === 'Approved') && (
+        <Field label={pending ? 'Match imported bank credit' : 'Correct a payment counted twice'}>
+          {linkedBankReceipt ? <p>Already linked to bank receipt {linkedBankReceipt.receiptNumber}.</p>
+            : !imported.length ? <div className="space-y-2">
+                {sameAmount.length ? <>
+                  <p>{sameAmount.length} imported receipts have this amount. Check the payer and bank reference before changing a donor link.</p>
+                  <div className="max-h-52 overflow-y-auto">{[...sameAmount].sort((a, b) =>
+                    Math.abs(Date.parse(a.date) - Date.parse(data.date)) - Math.abs(Date.parse(b.date) - Date.parse(data.date))
+                  ).map(d => <p className="border-t py-2" key={d.donationID}>{formatDate(d.date)} · {d.donorName || 'Unknown payer'} · {d.transactionReference || d.receiptNumber}<br />{unavailableReason(d)}</p>)}</div>
+                  <Link className="underline" to="/donations">Check receipts in Donations</Link>
+                </> : <p>No imported donation receipt for {formatCurrency(Number(data.amount))} was found. <Link className="underline" to="/bank-statement">Check the bank statement</Link>.</p>}
+              </div>
+            : <>
+          <Select value={paymentSource} onChange={e => { setPaymentSource(e.target.value); setConfirmed(false) }}>
+            <option value="">Choose the bank receipt to approve this payment</option>
+            {imported.map(d => <option key={d.donationID} value={d.donationID}>{formatDate(d.date)} · {d.donorName} · {formatCurrency(d.amount)} · {d.transactionReference || d.receiptNumber}</option>)}
+          </Select>
+          {!pending && <Button disabled={busy || !paymentSource} onClick={() => save(() => dataService.reviewCollection(row.id, 'Approved', '', accountID, true, paymentSource))}>Replace duplicate with selected bank receipt</Button>}
+          </>}
+        </Field>
+      )}
       {pending && !materials && !cash && <label className="flex gap-2 text-sm">
-        <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
-        I verified this reference and amount against the selected bank account.
+        <input type="checkbox" disabled={!imported.some(d => d.donationID === paymentSource)} checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
+        I checked the selected bank receipt and amount.
       </label>}
       {pending && (
         <>

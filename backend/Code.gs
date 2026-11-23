@@ -1806,11 +1806,10 @@ function collectionDetails_(body) {
   } else {
     data.phone = normalizePhone_(data.phone);
     data.pan = data.pan.toUpperCase();
-    if (!data.name) throw new Error('Enter the donor’s full name.')
+    if (!data.name) throw new Error('Enter the full donor name.');
     if (!/^\d{10}$/.test(data.phone)) throw new Error('Enter a 10-digit Indian mobile number.')
-    if (!data.address) throw new Error('Enter the donor’s residential address.')
-    if (!/^\d{12}$/.test(data.aadhaar)) throw new Error('Enter the 12-digit Aadhaar number.')
-    if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(data.pan)) throw new Error('Enter a PAN in the format ABCDE1234F.')
+    if (data.aadhaar && !/^\d{12}$/.test(data.aadhaar)) throw new Error('Enter the 12-digit Aadhaar number.')
+    if (data.pan && !/^[A-Z]{5}\d{4}[A-Z]$/.test(data.pan)) throw new Error('Enter a PAN in the format ABCDE1234F.')
     if (!/^(Residence|Office)$/.test(data.mailing)) throw new Error('Select Residence or Office as the preferred mailing address.')
     if (data.mailing === 'Office' && !data.office) throw new Error('Enter the office address or select Residence as the preferred mailing address.')
   }
@@ -1836,8 +1835,7 @@ function collectionDetails_(body) {
     if (installmentAmount) throw new Error('Enter a positive installment amount with up to two decimal places.');
     throw new Error('Enter a positive whole-rupee amount up to ₹1,00,00,00,000.');
   }
-  if (!/^(one-time|installment)$/.test(data.kind) || !/^(Cash|UPI|Bank Transfer|Cheque)$/.test(data.method) ||
-      (data.method !== 'Cash' && !data.reference)) throw new Error('Enter a valid amount, payment method and reference.');
+  if (!/^(one-time|installment)$/.test(data.kind) || !/^(Cash|UPI|Bank Transfer|Cheque)$/.test(data.method)) throw new Error('Choose a payment method.');
   if (data.kind === 'installment' && data.planID) {
     var plan = getCollectionPlans_({ donorID: data.donorID }, body.id).find(function (row) { return row.id === data.planID; });
     if (!plan) throw new Error('Choose an approved commitment for this donor.');
@@ -1994,11 +1992,11 @@ function reviewCollection_(body, user) {
       var account = data.method === 'Cash' ? cashWithCollectors_() : collectionBankAccount_(body.accountID);
       var matched = [];
       if (data.method !== 'Cash') {
-        var ref = data.reference.toLowerCase();
+        var ref = String(data.reference || '').trim().toLowerCase();
         matched = donations.filter(function (d) {
           return notDeleted_(d) && receiptReferences_(d).indexOf(ref) >= 0;
         });
-        var bankMovement = readAll_(CONFIG.sheetNames.transactions, HEADERS.transactions).some(function (t) {
+        var bankMovement = ref && readAll_(CONFIG.sheetNames.transactions, HEADERS.transactions).some(function (t) {
           return t.BankImportKey && t.IncomeOrExpense === 'income' && String(t.ReferenceID).trim().toLowerCase() === ref;
         });
         if (body.importedReceiptID) {
