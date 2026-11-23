@@ -25,6 +25,7 @@ export function MyDonationsPage() {
     { header: 'Receipt No.', accessor: (d) => d.receiptNumber },
     { header: 'Amount', accessor: (d) => <span className="font-semibold text-emerald-600">{formatCurrency(d.amount)}</span>, sortable: true, sortKey: 'amount' },
     { header: 'Category', accessor: (d) => <Badge color="blue">{d.category}</Badge> },
+    { header: 'Payment for', accessor: (d) => d.installmentPlanID ? 'Installment' : 'Donation' },
     { header: 'Purpose', accessor: (d) => d.purpose || '—' },
     { header: 'Method', accessor: (d) => d.paymentMethod },
     { header: '80G', accessor: (d) => (d.need80G ? <Badge color="green">Yes</Badge> : 'No') },

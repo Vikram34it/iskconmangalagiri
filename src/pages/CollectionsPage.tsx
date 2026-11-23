@@ -1,3 +1,4 @@
+import { MatchPayments } from '../components/MatchPayments'
 import { Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
@@ -383,7 +384,7 @@ function LiveCollectionsPage() {
         {!!commitmentRows?.length && <CommitmentTable key={filter} rows={commitmentRows} pending={filter === 'pending'} actions={(row) => (
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" onClick={() => setSelected(row.entry)}>View</Button>
-            {filter === 'pending' && <Button size="sm" disabled={formOpen} onClick={() => openCollection(null, row.entry)}>Record payment</Button>}
+            {filter === 'pending' && <Button size="sm" disabled={formOpen} onClick={() => openCollection(null, row.entry)}>Add next payment</Button>}
           </div>
         )} />}
         {!commitmentRows && filtered.length > 0 && <CollectionTable key={filter} rows={filtered} history={filter === 'Approved'} actions={(row) => (
@@ -686,13 +687,13 @@ function CollectionForm({ entry, paymentFor, representative, onCancel, onSaved }
                       {methods.map((method) => <option key={method}>{method}</option>)}
                     </Select>
                   </Field>
-                  {data.method && data.method !== 'Cash' && field('Payment reference', 'reference', { required: true, maxLength: 120 })}
+                  {data.method && data.method !== 'Cash' && field('Payment reference', 'reference', { required: true, maxLength: 120, placeholder: 'Copy the transaction ID from the payment receipt' })}
                 </>
               )}
             </div>
             <p className="text-sm text-slate-600">ISKCON representative · {representative}</p>
             <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={busy}>{busy ? 'Please wait…' : 'Submit for approval'}</Button>
+              <Button type="submit" disabled={busy}>{busy ? 'Please wait…' : 'Send to admin'}</Button>
             </div>
           </section>
         )}
@@ -779,6 +780,7 @@ export function CollectionReview({ dashboard = false }: { dashboard?: boolean })
       }}>{opened ? 'Hide collections' : 'Pending Collections'}</Button>}
       {opened && (
         <>
+          {dashboard && !activeCollector && !loading && <MatchPayments rows={rows} review={setSelected} reload={async () => { await Promise.all([load(), refreshCollectionsLedger()]) }} />}
           {activeCollector && (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-lg font-semibold">{activeCollector.name || 'Unnamed collector'}</h3>
