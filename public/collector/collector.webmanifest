@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "ISKCON Collector",
-  "short_name": "Collector",
+  "name": "ISKCON Devotee in Charge",
+  "short_name": "Devotee in Charge",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

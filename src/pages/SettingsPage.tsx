@@ -44,7 +44,7 @@ export function SettingsPage() {
   const userColumns: Column<User>[] = [
     { header: 'Name', accessor: (u) => <span className="font-medium text-slate-700">{u.name}</span>, sortable: true, sortKey: 'name' },
     { header: 'Email', accessor: (u) => u.email },
-    { header: 'Role', accessor: (u) => <Badge color={roleColor(u.role)}>{u.role}</Badge> },
+    { header: 'Role', accessor: (u) => <Badge color={roleColor(u.role)}>{u.role === 'collector' ? 'Devotee in Charge' : u.role}</Badge> },
     { header: 'Status', accessor: (u) => <Badge color={u.status === 'active' ? 'green' : 'slate'}>{u.status}</Badge> },
     { header: 'Created', accessor: (u) => formatDate(u.createdDate) },
   ]
@@ -392,7 +392,7 @@ function LoginShareForm({ share, templeName, onResetPin }: { share: LoginShare; 
           pin: null,
           error: /^(Permission denied|Invalid action|Unknown action)/i.test(detail)
             ? 'The PIN lookup is unavailable. Check that the latest Code.gs is deployed and you are signed in as an admin.'
-            : detail || 'Could not load the collector PIN.',
+            : detail || 'Could not load the devotee in charge PIN.',
         })
       }
     })
@@ -454,7 +454,7 @@ function LoginShareForm({ share, templeName, onResetPin }: { share: LoginShare; 
       {needsCollectorCredential && pinLookup && (
         <div className="space-y-2">
           <p role="alert" className="text-sm text-slate-700">
-            {pinLookup.error || 'The Users sheet has no readable PIN for this collector. Save a new PIN to prepare the message.'}
+            {pinLookup.error || 'The Users sheet has no readable PIN for this devotee in charge. Save a new PIN to prepare the message.'}
           </p>
           <Button variant="secondary" onClick={onResetPin}>Open Reset PIN</Button>
         </div>
@@ -509,7 +509,7 @@ function UserPinForm({ recipient, onDone, onShare }: { recipient: User; onDone: 
           </Field>
         </>
       ) : (
-        <Field label="New 4-digit PIN" hint="Saving replaces the collector’s current sign-in credential.">
+        <Field label="New 4-digit PIN" hint="Saving replaces the devotee in charge’s current sign-in credential.">
           <Input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4}" maxLength={4}
             required disabled={saving} value={newPin} onChange={(event) => setNewPin(event.target.value)} />
         </Field>
@@ -578,7 +578,7 @@ function UserForm({ initial, onDone, onShare }: { initial?: Partial<User>; onDon
           <option value="accountant">Accountant</option>
           <option value="manager">Manager</option>
           <option value="viewer">Viewer</option>
-          <option value="collector">Collector</option>
+          <option value="collector">Devotee in Charge</option>
           <option value="donor">Donor (own donations only)</option>
         </Select>
       </Field>

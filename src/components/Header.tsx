@@ -41,7 +41,7 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
         )}
         <div className="hidden sm:block text-right">
           <p className="text-sm font-medium text-slate-700">{user?.name}</p>
-          <p className="text-xs text-slate-400 capitalize">{user?.role}</p>
+          <p className="text-xs text-slate-400 capitalize">{user?.role === 'collector' ? 'Devotee in Charge' : user?.role}</p>
         </div>
         <div className="w-9 h-9 rounded-full bg-orange-600 flex items-center justify-center text-white font-bold uppercase text-sm">
           {user?.name?.charAt(0) || 'U'}

@@ -43,7 +43,7 @@ export function CollectionsPage() {
   if (user?.role === 'admin') {
     return (
       <div className="space-y-5">
-        <PageHeader title="Staff Collections Dashboard" subtitle="Collector activity, installment commitments, and approval history" />
+        <PageHeader title="Staff Collections Dashboard" subtitle="Devotee in Charge activity, installment commitments, and approval history" />
         <Link className="inline-block text-sm font-medium text-orange-700 hover:underline" to="/">Finance Dashboard</Link>
         {CONFIG.useMockData ? <p className="text-sm text-slate-600">Connect the Apps Script backend to view staff collections.</p> : <CollectionReview dashboard />}
       </div>
@@ -107,7 +107,7 @@ function CollectionTable({ rows, admin = false, history = false, actions }: {
       header: 'Pending amount', accessor: ({ installment }) => installment ? formatCurrency(installment.outstanding) : '—',
       className: 'whitespace-nowrap tabular-nums',
     })
-    columns.splice(2, 0, { header: 'Collector', accessor: 'collector' })
+    columns.splice(2, 0, { header: 'Devotee in Charge', accessor: 'collector' })
   }
 
   const visibleColumns = columns.filter((column) =>
@@ -249,23 +249,23 @@ function CollectionPrintReport({ rows, overview, breakdown }: {
     <tbody>{body.length ? body.map((r, i) => <tr key={i}>{r.map((cell, j) => <td key={j}>{cell}</td>)}</tr>) : <tr><td colSpan={head.length}>No records</td></tr>}</tbody></table>
   return createPortal(<article id="collection-print-report">
     <h1>ISKCON Mangalagiri · Staff collections</h1>
-    <p>All collectors · All dates · Prepared {formatDate(todayStr())}</p>
+    <p>All devotees in charge · All dates · Prepared {formatDate(todayStr())}</p>
     <h2>Overall totals</h2>
     {table(['Commitments', 'Promised', 'Received towards commitments', 'Pending to collect', 'One-time donations', 'Total received'], [[plans.length, money(overview.totals.pledged), money(overview.totals.received), money(overview.totals.outstanding), money(sum(oneTime)), money(overview.totals.received + sum(oneTime))]])}
     <p>Awaiting admin approval: {pending.length} submissions. Approved monetary totals exclude these submissions and materials.</p>
-    <h2>Collector-wise summary</h2>
-    {table(['Collector', 'Commitments', 'Promised', 'Paid towards commitments', 'Pending', 'One-time', 'Total received'], breakdown.collectors.map(c => {
+    <h2>Summary by Devotee in Charge</h2>
+    {table(['Devotee in Charge', 'Commitments', 'Promised', 'Paid towards commitments', 'Pending', 'One-time', 'Total received'], breakdown.collectors.map(c => {
       const owned = plans.filter(plan => breakdown.owners.get(plan.id) === c.id)
       const paid = owned.reduce((n, plan) => n + Math.round(plan.received * 100), 0)
       const once = sum(oneTime.filter(row => collectorKey(row) === c.id))
       return [c.name, owned.length, money(c.pledged), money(paid), money(c.outstanding), money(once), money(paid + once)]
     }))}
-    <p>Commitment payments are grouped under the collector responsible for the pledge. One-time donations are grouped under the collector who recorded them.</p>
+    <p>Commitment payments are grouped under the devotee in charge responsible for the pledge. One-time donations are grouped under the devotee in charge who recorded them.</p>
     <h2>Donor commitments</h2>
-    {table(['Donor', 'Responsible collector', 'Promised', 'Received', 'Pending'], plans.map(plan => [plan.donor, breakdown.collectors.find(c => c.id === breakdown.owners.get(plan.id))?.name || plan.entry.collector, formatCurrency(plan.pledged), formatCurrency(plan.received), formatCurrency(plan.outstanding)]))}
-    <h2>Approved collector payment history</h2>
+    {table(['Donor', 'Devotee in Charge', 'Promised', 'Received', 'Pending'], plans.map(plan => [plan.donor, breakdown.collectors.find(c => c.id === breakdown.owners.get(plan.id))?.name || plan.entry.collector, formatCurrency(plan.pledged), formatCurrency(plan.received), formatCurrency(plan.outstanding)]))}
+    <h2>Approved devotee in charge payment history</h2>
     {table(['Date', 'Donor', 'Collected by', 'Payment for', 'Method', 'Received'], payments.map(row => [formatDate(row.details.date), row.details.name, row.collector, row.details.kind === 'one-time' ? 'One-time' : 'Installment', row.details.method, formatCurrency(Number(row.details.amount))]))}
-    <p>Payments linked directly to a commitment are included in its received total. The history lists collector submissions.</p>
+    <p>Payments linked directly to a commitment are included in its received total. The history lists devotee in charge submissions.</p>
   </article>, document.body)
 }
 
@@ -284,7 +284,7 @@ function CommitmentTable({ rows, pending, actions, admin = false }: {
     { header: 'Installments', accessor: (row) => row.type === 'Installment commitment' ? `${row.paidCount} paid / ${row.pendingCount} remaining` : '—' },
   ]
   if (admin) columns.splice(1, 0, {
-    header: 'Collectors', accessor: (row) => [...row.collectors].filter(Boolean).join(', ') || '—',
+    header: 'Devotees in Charge', accessor: (row) => [...row.collectors].filter(Boolean).join(', ') || '—',
   })
   if (pending) {
     columns.push(
@@ -316,7 +316,7 @@ function LiveCollectionsPage() {
     } catch (err) {
       const message = errorText(err)
       setError(message === 'Permission denied'
-        ? 'The server denied access to Collections. Ask your admin to check the Collector role and Apps Script deployment.'
+        ? 'The server denied access to Collections. Ask your admin to check the Devotee in Charge role and Apps Script deployment.'
         : message)
     } finally {
       setLoading(false)
@@ -801,12 +801,12 @@ export function CollectionReview({ dashboard = false }: { dashboard?: boolean })
   }
   const cashHeld = [...cashByCollector.values()].reduce((sum, amount) => sum + amount, 0)
   const collectorColumns: Column<(typeof collectors)[number]>[] = [
-    { header: 'Collector', sortKey: 'name', sortable: true, accessor: (collector) => (
+    { header: 'Devotee in Charge', sortKey: 'name', sortable: true, accessor: (collector) => (
       <button type="button" className="text-left font-semibold text-orange-700 underline" onClick={() => {
         setCollectorID(collector.id)
         setQuery('')
         setView('all')
-      }}>{collector.name || 'Unnamed collector'}</button>
+      }}>{collector.name || 'Unnamed devotee in charge'}</button>
     ) },
     { header: 'Pledged', accessor: (collector) => formatCurrency(collector.pledged / 100), sortKey: 'pledged', sortable: true },
     { header: 'Outstanding', accessor: (collector) => formatCurrency(collector.outstanding / 100), sortKey: 'outstanding', sortable: true },
@@ -822,7 +822,7 @@ export function CollectionReview({ dashboard = false }: { dashboard?: boolean })
         <Button variant="secondary" onClick={() => window.print()}>Print / Save collections PDF</Button>
         <CollectionPrintReport rows={rows} overview={overview} breakdown={breakdown} />
       </>}
-      {dashboard ? <h2 className="text-lg font-semibold text-slate-900">Collector donations</h2> : <Button variant="secondary" onClick={() => {
+      {dashboard ? <h2 className="text-lg font-semibold text-slate-900">Devotee in Charge donations</h2> : <Button variant="secondary" onClick={() => {
         setOpened(!opened)
         if (!opened) void load()
       }}>{opened ? 'Hide collections' : 'Pending Collections'}</Button>}
@@ -831,24 +831,24 @@ export function CollectionReview({ dashboard = false }: { dashboard?: boolean })
           {dashboard && !activeCollector && !loading && <MatchPayments rows={rows} review={setSelected} reload={async () => { await Promise.all([load(), refreshCollectionsLedger()]) }} />}
           {activeCollector && (
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-lg font-semibold">{activeCollector.name || 'Unnamed collector'}</h3>
+              <h3 className="text-lg font-semibold">{activeCollector.name || 'Unnamed devotee in charge'}</h3>
               <Button variant="secondary" onClick={() => {
                 setCollectorID(null)
                 setQuery('')
-              }}>Back to all collectors</Button>
+              }}>Back to all devotees in charge</Button>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label={activeCollector ? 'Collector totals' : 'Approved collection totals across collectors'}>
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label={activeCollector ? 'Devotee in Charge totals' : 'Approved collection totals across devotees in charge'}>
             {(activeCollector ? [
               ['Approved installment pledges', activeCollector.pledged],
               ['Remaining to collect', activeCollector.outstanding],
               ['Completed pledges', activeCollector.completed],
-              ['Approved collector payments', activeCollector.received],
+              ['Approved devotee in charge payments', activeCollector.received],
             ] as const : [
               ['Approved installment pledges', overview.totals.pledged],
               ['Paid toward pledges', overview.totals.received],
               ['Remaining to collect', overview.totals.outstanding],
-              ['Approved collector payments', overview.collectedPaise],
+              ['Approved devotee in charge payments', overview.collectedPaise],
             ] as const).map(([label, paise]) => (
               <div key={label} className="rounded-lg bg-slate-50 p-3">
                 <p className="text-sm text-slate-600">{label}</p>
@@ -861,14 +861,14 @@ export function CollectionReview({ dashboard = false }: { dashboard?: boolean })
             <p>New pledges {formatCurrency(pendingPledges)} · Reported payments {formatCurrency(pendingPayments)}</p>
           </div>}
           <p className="text-xs text-slate-600">
-            Pledges are credited to the collector who opened the commitment, or to the first collector with an approved submission when the commitment was set up separately. Approved receipts are credited to the collector who recorded each payment.
+            Pledges are credited to the devotee in charge who opened the commitment, or to the first devotee in charge with an approved submission when the commitment was set up separately. Approved receipts are credited to the devotee in charge who recorded each payment.
           </p>
           {!activeCollector && collectors.length > 0 && (
             <DataTable columns={collectorColumns} data={collectors} rowKey={(collector) => collector.id}
-              searchable searchPlaceholder="Find a collector" />
+              searchable searchPlaceholder="Find a devotee in charge" />
           )}
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-            <Input aria-label="Search collector donations" placeholder="Search donor, collector or reference" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <Input aria-label="Search devotee in charge donations" placeholder="Search donor, devotee in charge or reference" value={query} onChange={(event) => setQuery(event.target.value)} />
             <Select aria-label="Collections view" value={view} onChange={(e) => setView(e.target.value as typeof view)}>
               <option value="all">All submissions</option>
               <option value="pending">Pending review</option>
@@ -884,7 +884,7 @@ export function CollectionReview({ dashboard = false }: { dashboard?: boolean })
           </div>
           {view === 'cash' && (
             <div className="rounded-lg bg-slate-50 p-3 text-sm">
-              <p className="font-medium">Cash with collectors · {formatCurrency(cashHeld)}</p>
+              <p className="font-medium">Cash with devotees in charge · {formatCurrency(cashHeld)}</p>
               {[...cashByCollector].map(([name, amount]) => <p key={name} className="text-slate-600">{name} · {formatCurrency(amount)}</p>)}
             </div>
           )}

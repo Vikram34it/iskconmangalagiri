@@ -62,7 +62,7 @@ export function DashboardPage() {
         {!dashboard && <p role="status" className="text-sm text-slate-600">Finance totals are unavailable. Reload to try again.</p>}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Money in bank" value={money(dashboard?.bankBalance)} icon={<Landmark size={20} />} color="blue" />
-          <StatCard label="Cash outside bank" value={money(dashboard?.cashBalance)} icon={<Wallet size={20} />} color="amber" sub="Includes recorded cash held by collectors" />
+          <StatCard label="Cash outside bank" value={money(dashboard?.cashBalance)} icon={<Wallet size={20} />} color="amber" sub="Includes recorded cash held by devotees in charge" />
           <StatCard label="Total spent" value={money(dashboard?.totalExpenses)} icon={<Receipt size={20} />} color="red" sub="Across all recorded spending" />
           <StatCard label="Total income" value={money(totalIncome == null ? dashboard?.totalDonations : totalIncome / 100)} icon={<HandCoins size={20} />} color="green" />
           <StatCard label="Approved staff receipts" value={money(dashboard?.approvedStaffReceipts)} icon={<HandCoins size={20} />} color="teal" sub="Already included in bank or cash balances" />

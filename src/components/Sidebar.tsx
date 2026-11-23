@@ -114,7 +114,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">{user?.name}</p>
-              <p className="text-[11px] text-slate-400 capitalize">{user?.role}</p>
+              <p className="text-[11px] text-slate-400 capitalize">{user?.role === 'collector' ? 'Devotee in Charge' : user?.role}</p>
             </div>
           </div>
           <button

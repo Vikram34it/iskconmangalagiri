@@ -82,7 +82,7 @@ export function LoginPage({ staff = false }: { staff?: boolean }) {
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
           <img src={import.meta.env.BASE_URL + "iskcon-mangalagiri.png"} alt="ISKCON Mangalagiri" className="mx-auto mb-3 h-24 w-24 object-contain" />
-          <h1 className="text-2xl font-bold text-slate-800">{isCollectorPortal ? 'ISKCON Collector' : 'Temple Management'}</h1>
+          <h1 className="text-2xl font-bold text-slate-800">{isCollectorPortal ? 'ISKCON Devotee in Charge' : 'Temple Management'}</h1>
           <p className="text-slate-500 text-sm mt-1">{staff ? 'Staff and Admin Login' : 'Donor Login'}</p>
         </div>
 
