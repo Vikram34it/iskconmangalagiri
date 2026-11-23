@@ -2002,6 +2002,12 @@ function reviewCollection_(body, user) {
         if (body.importedReceiptID) {
           var selected = donations.find(function (d) { return d.DonationID === body.importedReceiptID && notDeleted_(d); });
           if (!selected || matched.some(function (d) { return d !== selected; })) throw new Error('The selected receipt conflicts with the payment reference.');
+          if (body.existingDonorID && !data.donorID) {
+            if (String(selected.DonorID || '') !== String(body.existingDonorID) || !collectionPerson_(body.existingDonorID)) {
+              throw new Error('Choose a receipt belonging to the selected active donor.');
+            }
+            data.donorID = String(body.existingDonorID);
+          }
           matched = [selected];
         }
         if (bankMovement || matched.length > 1) throw new Error('This reference needs bank reconciliation before approval.');

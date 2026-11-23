@@ -953,7 +953,7 @@ function CollectionMessage({ row }: { row: CollectionEntry }) {
 }
 
 function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: () => Promise<void> }) {
-  const { accounts, donations } = useApp()
+  const { accounts, donations, people } = useApp()
   const data = row.details
   const pending = row.status === 'Pending review'
   const materials = data.kind === 'materials'
@@ -966,6 +966,7 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
   const [note, setNote] = useState('')
   const [date, setDate] = useState(todayStr)
   const [reference, setReference] = useState('')
+  const [existingDonorID, setExistingDonorID] = useState('')
   const [paymentSource, setPaymentSource] = useState('')
   const postedReceipt = donations.find(d => d.collectionID === row.id)
   const linkedBankReceipt = postedReceipt?.bankImportKey ? postedReceipt : undefined
@@ -974,7 +975,7 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
   function unavailableReason(d: (typeof donations)[number]) {
     if (d.collectionID) return 'Already linked to a collection'
     if (!receiptAccount || d.accountID !== receiptAccount) return 'Different bank account'
-    if (d.donorID && d.donorID !== data.donorID) return data.donorID ? 'Different donor profile' : 'Receipt has a donor profile; collection uses a new enrollment'
+    if (d.donorID && d.donorID !== (data.donorID || existingDonorID)) return data.donorID ? 'Different donor profile' : 'Receipt has a donor profile; collection uses a new enrollment'
     if (d.installmentPlanID && d.installmentPlanID !== data.planID) return 'Already linked to another commitment'
     return ''
   }
@@ -1012,6 +1013,12 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
           </Select>
         </Field>
       )}
+      {pending && !cash && !materials && !data.donorID && <Field label="Is this donor already in People?">
+        <Select value={existingDonorID} onChange={e => { setExistingDonorID(e.target.value); setPaymentSource(''); setConfirmed(false) }}>
+          <option value="">Use the new donor enrollment</option>
+          {people.filter(p => p.personType.includes('Donor') && p.status === 'active').map(p => <option key={p.personID} value={p.personID}>{p.name} · {p.phone || p.personID}</option>)}
+        </Select>
+      </Field>}
       {!materials && !cash && (pending || row.status === 'Approved') && (
         <Field label={pending ? 'Match imported bank credit' : 'Correct a payment counted twice'}>
           {linkedBankReceipt ? <p>Already linked to bank receipt {linkedBankReceipt.receiptNumber}.</p>
@@ -1041,7 +1048,7 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
         <>
           <Field label="Review note" hint="Required when returning or rejecting a collection."><Input value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} /></Field>
           <div className="flex flex-wrap gap-2">
-            <Button disabled={busy || (!materials && !cash && (!accountID || !confirmed || !imported.some(d => d.donationID === paymentSource)))} onClick={() => save(() => dataService.reviewCollection(row.id, 'Approved', note, accountID, confirmed, paymentSource || undefined))}>Approve</Button>
+            <Button disabled={busy || (!materials && !cash && (!accountID || !confirmed || !imported.some(d => d.donationID === paymentSource)))} onClick={() => save(() => dataService.reviewCollection(row.id, 'Approved', note, accountID, confirmed, paymentSource || undefined, false, existingDonorID || undefined))}>Approve</Button>
             <Button variant="secondary" disabled={busy || !note.trim()} onClick={() => save(() => dataService.reviewCollection(row.id, 'Needs correction', note, '', false))}>Return for correction</Button>
             <Button variant="secondary" disabled={busy || !note.trim()} onClick={() => save(() => dataService.reviewCollection(row.id, 'Rejected', note, '', false))}>Reject</Button>
           </div>

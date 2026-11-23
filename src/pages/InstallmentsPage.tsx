@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Card, Field, Input, PageHeader, Select, Textarea } from '../components/ui'
+import { Button, Card, Field, Input, Modal, PageHeader, Select, Textarea } from '../components/ui'
 import { useApp } from '../context/AppContext'
 import { dataService } from '../services/apiService'
 import type { Donation, InstallmentPlan } from '../types'
@@ -22,6 +22,9 @@ function makeSchedule(total: number, count: number, firstDue: string): Installme
 
 export function InstallmentsPage() {
   const { people } = useApp()
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState('Unpaid')
+  const [expanded, setExpanded] = useState('')
   const [plans, setPlans] = useState<InstallmentPlan[]>([])
   const [receipts, setReceipts] = useState<Donation[]>([])
   const [donorID, setDonorID] = useState('')
@@ -58,12 +61,28 @@ export function InstallmentsPage() {
     }
   }
 
+  const ledger = plans.map(plan => {
+    const donor = donors.find(person => person.personID === plan.donorID)
+    const payments = receipts.filter(receipt => !receipt.deleted && receipt.donorID === plan.donorID)
+    let schedule: Installment[] = []
+    try {
+      const parsed = JSON.parse(plan.schedule)
+      if (Array.isArray(parsed) && parsed.every(i => i && Number.isSafeInteger(i.paise) && i.paise > 0 && typeof i.due === 'string')) schedule = parsed
+    } catch { /* Older schedules may need correction. */ }
+    const promised = schedule.reduce((sum, item) => sum + item.paise, 0)
+    const paid = payments.reduce((sum, receipt) => sum + (receipt.installmentPlanID === plan.planID ? Math.round(receipt.amount * 100) : 0), 0)
+    return { plan, donor, payments, schedule, promised, paid, balance: Math.max(0, promised - paid) }
+  })
+  const visible = ledger.filter(row =>
+    (filter === 'All' || (filter === 'Unpaid' ? row.balance > 0 || !row.schedule.length : row.schedule.length && row.balance === 0)) &&
+    [row.donor?.name, row.donor?.phone, row.plan.planID].some(value => String(value || '').toLowerCase().includes(search.trim().toLowerCase())))
+  const selected = visible.find(row => row.plan.planID === expanded)
   return (
     <div className="space-y-4">
-      <PageHeader title="Donor Installments" subtitle="Commitments, linked receipts, and payment reminders" />
+      <PageHeader title="Donor Installments" subtitle="Find a donor to check their balance or apply a payment already received." />
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       <Card className="p-4">
-        <form className="grid gap-3 md:grid-cols-3" onSubmit={async (event) => {
+        <details><summary className="cursor-pointer font-semibold">Add a new commitment</summary><form className="mt-3 grid gap-3 md:grid-cols-3" onSubmit={async (event) => {
           event.preventDefault()
           const saved = await save(() => dataService.createInstallmentPlan(donorID, 'Temple Construction', makeSchedule(Math.round(Number(total) * 100), Number(count), firstDue)))
           if (saved) setTotal('')
@@ -77,15 +96,24 @@ export function InstallmentsPage() {
           <Field label="Monthly installments"><Input required type="number" min="1" max="120" value={count} onChange={(event) => setCount(event.target.value)} /></Field>
           <Field label="First due date"><Input required type="date" value={firstDue} onChange={(event) => setFirstDue(event.target.value)} /></Field>
           <div className="flex items-end"><Button type="submit" disabled={busy}>Create commitment</Button></div>
-        </form>
+        </form></details>
       </Card>
 
-      {plans.map((plan) => {
-        const donor = donors.find((person) => person.personID === plan.donorID)
-        return <Commitment key={plan.planID} plan={plan} donorName={donor?.name || 'Donor profile unavailable'} phone={String(donor?.phone || '')}
-          receipts={receipts.filter((receipt) => receipt.donorID === plan.donorID)} busy={busy} save={save} />
-      })}
-      {!plans.length && <p className="text-sm text-slate-600">{busy ? 'Loading commitments…' : 'No commitments recorded.'}</p>}
+      <Input aria-label="Find donor" placeholder="Find donor by name or phone" value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="flex gap-2">{['Unpaid', 'Completed', 'All'].map(t => <Button key={t} variant={filter === t ? 'primary' : 'secondary'} onClick={() => setFilter(t)}>{t}</Button>)}</div>
+      <Card className="overflow-x-auto"><table className="w-full text-sm text-left">
+        <thead><tr>{['Donor', 'Promised', 'Paid', 'Balance', ''].map(h => <th key={h} className="p-3">{h}</th>)}</tr></thead>
+        <tbody>{visible.map(({ plan, donor, schedule, promised, paid, balance }) => <tr className="border-t" key={plan.planID}>
+          <td className="p-3 font-medium">{donor?.name || 'Unknown donor'}<small className="block">{plan.purpose} · {schedule.length ? formatDate(schedule[0].due) : 'Check schedule'}</small></td>
+          <td className="p-3">{schedule.length ? money(promised) : '—'}</td><td className="p-3">{money(paid)}</td><td className="p-3 font-semibold">{schedule.length ? money(balance) : '—'}</td>
+          <td className="p-3"><Button disabled={!schedule.length} onClick={() => setExpanded(plan.planID)}>{balance ? 'Manage payments' : 'View history'}</Button></td>
+        </tr>)}</tbody></table>
+        {!visible.length && <p className="p-3">{busy ? 'Loading commitments…' : 'No matching commitments.'}</p>}
+      </Card>
+      <Modal open={Boolean(selected)} onClose={() => setExpanded('')} title="Commitment details" wide>
+        {selected && <Commitment key={selected.plan.planID} plan={selected.plan} donorName={selected.donor?.name || 'Donor'} phone={String(selected.donor?.phone || '')}
+          receipts={selected.payments} busy={busy} save={save} />}
+      </Modal>
     </div>
   )
 }
@@ -147,7 +175,7 @@ function Commitment({ plan, donorName, phone, receipts, busy, save }: {
         <ul className="mt-2 space-y-1">{installments.map((item, index) =>
           <li key={index}>{index + 1}. {formatDate(item.due)} · {money(item.paise)} · {item.remaining ? money(item.remaining) + ' remaining' : 'Paid'}</li>)}</ul>
       </details>
-      <div className="flex flex-wrap items-end gap-2">
+      {outstanding > 0 && (linkable.length ? <div className="flex flex-wrap items-end gap-2">
         <Field label="Choose an existing donation receipt">
           <Select value={receiptID} onChange={(event) => setReceiptID(event.target.value)}>
             <option value="">Select receipt</option>
@@ -158,8 +186,8 @@ function Commitment({ plan, donorName, phone, receipts, busy, save }: {
         </Field>
         <Button disabled={busy || !linkable.some((receipt) => receipt.donationID === receiptID)} onClick={async () => {
           if (await save(() => dataService.linkInstallmentPayment(plan.planID, receiptID))) setReceiptID('')
-        }}>Link payment</Button>
-      </div>
+        }}>Apply receipt to commitment</Button>
+      </div> : <p>No available receipt fits this balance. Check the donor on the receipt in Donations.</p>)}
       {linked.length > 0 && <ul className="space-y-1 text-sm">{linked.map((receipt) => <li key={receipt.donationID} className="flex items-center gap-2">
         <span>{receipt.receiptNumber || receipt.donationID} · {formatDate(receipt.date)} · {formatCurrency(receipt.amount)} · {receipt.paymentMethod}</span>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => void save(() => dataService.linkInstallmentPayment(plan.planID, receipt.donationID, true))}>Unlink</Button>
