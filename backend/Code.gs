@@ -1952,7 +1952,7 @@ function primaryBankAccount_(accounts) {
 
 function collectionBankAccount_(id) {
   var primary = primaryBankAccount_(readAll_(CONFIG.sheetNames.accounts, HEADERS.accounts));
-  if (!primary || (id && String(primary.AccountID) !== id)) throw new Error('Staff collections must be deposited in ICICI.');
+  if (!primary || (id && String(primary.AccountID) !== id)) throw new Error('Devotee collections must be deposited in ICICI.');
   return collectionAccount_(String(primary.AccountID), 'bank');
 }
 

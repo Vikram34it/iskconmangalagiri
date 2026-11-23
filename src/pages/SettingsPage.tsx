@@ -400,7 +400,7 @@ function LoginShareForm({ share, templeName, onResetPin }: { share: LoginShare; 
   }, [collectorID])
   const loginUrl = isCollectorPortal ? new URL('../', window.location.href) : new URL(window.location.href)
   loginUrl.search = ''
-  loginUrl.hash = isDonor ? '/login' : '/staff-login'
+  loginUrl.hash = isDonor ? '/login' : '/team-login'
   const signInLink = isCollector ? 'https://vikram34it.github.io/iskconmangalagiri/collector/' : loginUrl.href
   const digits = phone.replace(/\D/g, '')
   const whatsappPhone = digits.length === 10 && !phone.trim().startsWith('+') ? '91' + digits : digits
@@ -409,7 +409,7 @@ function LoginShareForm({ share, templeName, onResetPin }: { share: LoginShare; 
   const message = [
     `*Hare Krishna, ${recipient.name}!*`,
     '',
-    `*${templeName} ${isDonor ? 'Donor' : 'Staff'} Portal*`,
+    `*${templeName} ${isDonor ? 'Donor' : 'Team'} Portal*`,
     `*Login link:* ${signInLink}`,
     ...(isCollector
       ? [`Select your name *${recipient.name}* from the dropdown list.`]

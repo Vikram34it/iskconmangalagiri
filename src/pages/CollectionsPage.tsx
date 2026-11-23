@@ -43,9 +43,9 @@ export function CollectionsPage() {
   if (user?.role === 'admin') {
     return (
       <div className="space-y-5">
-        <PageHeader title="Staff Collections Dashboard" subtitle="Devotee in Charge activity, installment commitments, and approval history" />
+        <PageHeader title="Devotee Collections" subtitle="Devotee in Charge activity, installment commitments, and approval history" />
         <Link className="inline-block text-sm font-medium text-orange-700 hover:underline" to="/">Finance Dashboard</Link>
-        {CONFIG.useMockData ? <p className="text-sm text-slate-600">Connect the Apps Script backend to view staff collections.</p> : <CollectionReview dashboard />}
+        {CONFIG.useMockData ? <p className="text-sm text-slate-600">Connect the Apps Script backend to view devotee collections.</p> : <CollectionReview dashboard />}
       </div>
     )
   }
@@ -248,7 +248,7 @@ function CollectionPrintReport({ rows, overview, breakdown }: {
   const table = (head: string[], body: (string | number)[][]) => <table><thead><tr>{head.map(h => <th key={h}>{h}</th>)}</tr></thead>
     <tbody>{body.length ? body.map((r, i) => <tr key={i}>{r.map((cell, j) => <td key={j}>{cell}</td>)}</tr>) : <tr><td colSpan={head.length}>No records</td></tr>}</tbody></table>
   return createPortal(<article id="collection-print-report">
-    <h1>ISKCON Mangalagiri · Staff collections</h1>
+    <h1>ISKCON Mangalagiri · Devotee collections</h1>
     <p>All devotees in charge · All dates · Prepared {formatDate(todayStr())}</p>
     <h2>Overall totals</h2>
     {table(['Commitments', 'Promised', 'Received towards commitments', 'Pending to collect', 'One-time donations', 'Total received'], [[plans.length, money(overview.totals.pledged), money(overview.totals.received), money(overview.totals.outstanding), money(sum(oneTime)), money(overview.totals.received + sum(oneTime))]])}

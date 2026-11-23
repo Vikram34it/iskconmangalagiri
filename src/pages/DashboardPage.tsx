@@ -55,7 +55,7 @@ export function DashboardPage() {
             <p className="mt-1 text-sm text-slate-500">{settings.templeName}</p>
           </div>
           <div className="flex flex-wrap gap-3 text-sm font-medium text-orange-700">
-            <Link className="hover:underline" to="/collections">Staff Collections Dashboard</Link>
+            <Link className="hover:underline" to="/collections">Devotee Collections</Link>
             <Link className="hover:underline" to="/reports">Financial reports</Link>
           </div>
         </div>
@@ -65,12 +65,12 @@ export function DashboardPage() {
           <StatCard label="Cash outside bank" value={money(dashboard?.cashBalance)} icon={<Wallet size={20} />} color="amber" sub="Includes recorded cash held by devotees in charge" />
           <StatCard label="Total spent" value={money(dashboard?.totalExpenses)} icon={<Receipt size={20} />} color="red" sub="Across all recorded spending" />
           <StatCard label="Total income" value={money(totalIncome == null ? dashboard?.totalDonations : totalIncome / 100)} icon={<HandCoins size={20} />} color="green" />
-          <StatCard label="Approved staff receipts" value={money(dashboard?.approvedStaffReceipts)} icon={<HandCoins size={20} />} color="teal" sub="Already included in bank or cash balances" />
+          <StatCard label="Approved collection receipts" value={money(dashboard?.approvedStaffReceipts)} icon={<HandCoins size={20} />} color="teal" sub="Already included in bank or cash balances" />
         </div>
         <section className="space-y-3" aria-labelledby="construction-finance">
           <h2 id="construction-finance" className="text-lg font-semibold text-slate-900">Temple Construction ledger</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <StatCard label="Received for construction" value={money(construction?.received ?? dashboard?.constructionDonations)} icon={<HandCoins size={20} />} color="green" sub="Includes approved staff collections" />
+            <StatCard label="Received for construction" value={money(construction?.received ?? dashboard?.constructionDonations)} icon={<HandCoins size={20} />} color="green" sub="Includes approved devotee collections" />
             <StatCard label="Spent on construction" value={money(construction?.spent ?? dashboard?.totalConstructionExpenses)} icon={<HardHat size={20} />} color="orange" sub="Included in total spent" />
             <StatCard label="Construction funds available" value={money(construction ? construction.bank + construction.cash : undefined)} icon={<Wallet size={20} />} color="blue" />
             <StatCard label="Construction pledged" value={money(dashboard?.constructionPledged)} icon={<HandCoins size={20} />} color="violet" sub="Approved installment commitments" />

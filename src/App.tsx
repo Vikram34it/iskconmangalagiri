@@ -32,7 +32,8 @@ export default function App() {
       <HashRouter>
         <Routes>
           <Route path="/login" element={<LoginPage staff={isCollectorPortal} />} />
-          <Route path="/staff-login" element={<LoginPage key="staff" staff />} />
+          <Route path="/team-login" element={<LoginPage key="staff" staff />} />
+          <Route path="/staff-login" element={<Navigate to="/team-login" replace />} />
           <Route element={<AppLayout />}>
             <Route path="/" element={<HomeRoute />} />
             <Route

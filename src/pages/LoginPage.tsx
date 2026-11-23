@@ -83,7 +83,7 @@ export function LoginPage({ staff = false }: { staff?: boolean }) {
         <div className="text-center mb-6">
           <img src={import.meta.env.BASE_URL + "iskcon-mangalagiri.png"} alt="ISKCON Mangalagiri" className="mx-auto mb-3 h-24 w-24 object-contain" />
           <h1 className="text-2xl font-bold text-slate-800">{isCollectorPortal ? 'ISKCON Devotee in Charge' : 'Temple Management'}</h1>
-          <p className="text-slate-500 text-sm mt-1">{staff ? 'Staff and Admin Login' : 'Donor Login'}</p>
+          <p className="text-slate-500 text-sm mt-1">{staff ? 'Temple Team Login' : 'Donor Login'}</p>
         </div>
 
         {CONFIG.useMockData && (
@@ -101,9 +101,9 @@ export function LoginPage({ staff = false }: { staff?: boolean }) {
               </p>
             )}
             {staff && !useEmail ? (
-              <Field label="Staff member" required>
+              <Field label="Your name" required>
                 <Select value={email} onChange={(e) => setEmail(e.target.value)} required disabled={loadingStaff}>
-                  <option value="">{loadingStaff ? 'Loading staff…' : 'Select your name'}</option>
+                  <option value="">{loadingStaff ? 'Loading names…' : 'Select your name'}</option>
                   {staffChoices.map((item) => (
                     <option key={item.id} value={item.id}>{item.name}{(nameCounts.get(item.name) || 0) > 1 ? ' (' + item.id + ')' : ''}</option>
                   ))}

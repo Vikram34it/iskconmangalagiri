@@ -98,7 +98,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                     >
                       {icons[item.path]}
                       {user?.role === 'admin' && item.path === '/' ? 'Finance Dashboard'
-                        : user?.role === 'admin' && item.path === '/collections' ? 'Staff Collections Dashboard' : item.label}
+                        : user?.role === 'admin' && item.path === '/collections' ? 'Devotee Collections' : item.label}
                     </NavLink>
                   ))}
                 </div>
