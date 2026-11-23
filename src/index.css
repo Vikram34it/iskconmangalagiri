@@ -69,3 +69,17 @@ body {
     border-color: #94a3b8 !important;
   }
 }
+
+#collection-print-report { display: none; }
+@media print {
+  body:has(> #collection-print-report) > :not(#collection-print-report) { display: none !important; }
+  body > #collection-print-report, #collection-print-report * { visibility: visible; }
+  body > #collection-print-report { display: block; color: #111; font: 10pt Arial, sans-serif; }
+  #collection-print-report h1 { font-size: 17pt; }
+  #collection-print-report h2 { margin-top: 1.2em; font-size: 13pt; break-after: avoid; }
+  #collection-print-report p { margin: .6em 0; }
+  #collection-print-report table { width: 100%; border-collapse: collapse; }
+  #collection-print-report th, #collection-print-report td { text-align: left; padding: 4pt; border: 1px solid #bbb; }
+  #collection-print-report thead { display: table-header-group; }
+  #collection-print-report tr { break-inside: avoid; }
+}

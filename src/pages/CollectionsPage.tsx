@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { MatchPayments } from '../components/MatchPayments'
 import { Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -231,6 +232,41 @@ function collectorBreakdown(rows: CollectionEntry[], overview: ReturnType<typeof
     }
   }
   return { owners, collectors: [...collectors.values()].sort((a, b) => b.outstanding - a.outstanding || a.name.localeCompare(b.name)) }
+}
+
+function CollectionPrintReport({ rows, overview, breakdown }: {
+  rows: CollectionEntry[]
+  overview: ReturnType<typeof collectionOverview>
+  breakdown: ReturnType<typeof collectorBreakdown>
+}) {
+  const plans = [...overview.pending, ...overview.completed].filter(plan => plan.type === 'Installment commitment')
+  const money = (paise: number) => formatCurrency(paise / 100)
+  const pending = rows.filter(row => row.status === 'Pending review')
+  const payments = overview.history.filter(row => row.details.kind !== 'materials')
+  const oneTime = payments.filter(row => row.details.kind === 'one-time')
+  const sum = (items: CollectionEntry[]) => items.reduce((total, row) => total + Math.round(Number(row.details.amount || 0) * 100), 0)
+  const table = (head: string[], body: (string | number)[][]) => <table><thead><tr>{head.map(h => <th key={h}>{h}</th>)}</tr></thead>
+    <tbody>{body.length ? body.map((r, i) => <tr key={i}>{r.map((cell, j) => <td key={j}>{cell}</td>)}</tr>) : <tr><td colSpan={head.length}>No records</td></tr>}</tbody></table>
+  return createPortal(<article id="collection-print-report">
+    <h1>ISKCON Mangalagiri · Staff collections</h1>
+    <p>All collectors · All dates · Prepared {formatDate(todayStr())}</p>
+    <h2>Overall totals</h2>
+    {table(['Commitments', 'Promised', 'Received towards commitments', 'Pending to collect', 'One-time donations', 'Total received'], [[plans.length, money(overview.totals.pledged), money(overview.totals.received), money(overview.totals.outstanding), money(sum(oneTime)), money(overview.totals.received + sum(oneTime))]])}
+    <p>Awaiting admin approval: {pending.length} submissions. Approved monetary totals exclude these submissions and materials.</p>
+    <h2>Collector-wise summary</h2>
+    {table(['Collector', 'Commitments', 'Promised', 'Paid towards commitments', 'Pending', 'One-time', 'Total received'], breakdown.collectors.map(c => {
+      const owned = plans.filter(plan => breakdown.owners.get(plan.id) === c.id)
+      const paid = owned.reduce((n, plan) => n + Math.round(plan.received * 100), 0)
+      const once = sum(oneTime.filter(row => collectorKey(row) === c.id))
+      return [c.name, owned.length, money(c.pledged), money(paid), money(c.outstanding), money(once), money(paid + once)]
+    }))}
+    <p>Commitment payments are grouped under the collector responsible for the pledge. One-time donations are grouped under the collector who recorded them.</p>
+    <h2>Donor commitments</h2>
+    {table(['Donor', 'Responsible collector', 'Promised', 'Received', 'Pending'], plans.map(plan => [plan.donor, breakdown.collectors.find(c => c.id === breakdown.owners.get(plan.id))?.name || plan.entry.collector, formatCurrency(plan.pledged), formatCurrency(plan.received), formatCurrency(plan.outstanding)]))}
+    <h2>Approved collector payment history</h2>
+    {table(['Date', 'Donor', 'Collected by', 'Payment for', 'Method', 'Received'], payments.map(row => [formatDate(row.details.date), row.details.name, row.collector, row.details.kind === 'one-time' ? 'One-time' : 'Installment', row.details.method, formatCurrency(Number(row.details.amount))]))}
+    <p>Payments linked directly to a commitment are included in its received total. The history lists collector submissions.</p>
+  </article>, document.body)
 }
 
 function CommitmentTable({ rows, pending, actions, admin = false }: {
@@ -733,7 +769,8 @@ export function CollectionReview({ dashboard = false }: { dashboard?: boolean })
   useEffect(() => { if (dashboard) void load() }, [dashboard])
 
   const overview = collectionOverview(rows)
-  const { collectors, owners } = collectorBreakdown(rows, overview)
+  const breakdown = collectorBreakdown(rows, overview)
+  const { collectors, owners } = breakdown
   const activeCollector = collectors.find((collector) => collector.id === collectorID)
   const search = query.trim().toLowerCase()
   const matches = (row: CollectionEntry) => !search || [
@@ -781,6 +818,10 @@ export function CollectionReview({ dashboard = false }: { dashboard?: boolean })
 
   return (
     <Card className="space-y-3 p-4">
+      {dashboard && !loading && !error && <>
+        <Button variant="secondary" onClick={() => window.print()}>Print / Save collections PDF</Button>
+        <CollectionPrintReport rows={rows} overview={overview} breakdown={breakdown} />
+      </>}
       {dashboard ? <h2 className="text-lg font-semibold text-slate-900">Collector donations</h2> : <Button variant="secondary" onClick={() => {
         setOpened(!opened)
         if (!opened) void load()
