@@ -2015,14 +2015,8 @@ function reviewCollection_(body, user) {
               (existing.InstallmentPlanID && existing.InstallmentPlanID !== data.planID)) {
             throw new Error('An existing receipt uses this reference. Review it in Donations before approving.');
           }
-        } else if (data.donorID && donations.some(function (d) {
-          return notDeleted_(d) && d.BankImportKey && !d.CollectionID && d.DonorID === data.donorID &&
-            d.AccountID === account.AccountID && Math.round(Number(d.Amount) * 100) === Math.round(data.amount * 100) &&
-            (!d.InstallmentPlanID || d.InstallmentPlanID === data.planID);
-        }) && body.distinctPayment !== true) {
-          throw new Error('An imported receipt already matches this donor and amount. Select it or confirm this is a separate payment.');
-        } else if (body.confirmBankCredit !== true) {
-          throw new Error('Verify that the payment has credited the selected bank account.');
+        } else {
+          throw new Error('Import the bank credit and select its receipt before approving this payment.');
         }
       }
       if (data.planID && !(matched.length && matched[0].InstallmentPlanID === data.planID)) {
