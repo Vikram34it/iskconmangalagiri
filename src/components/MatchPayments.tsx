@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { dataService } from '../services/apiService'
-import type { CollectionEntry } from '../types'
+import type { CollectionEntry, InstallmentPlan } from '../types'
 import { formatCurrency, formatDate } from '../utils/helpers'
-import { Button } from './ui'
+import { Link } from 'react-router-dom'
+import { Button, Input, Select } from './ui'
 
 export function MatchPayments({ rows, review, reload }: {
   rows: CollectionEntry[]
@@ -14,6 +15,11 @@ export function MatchPayments({ rows, review, reload }: {
   const [tab, setTab] = useState('Ready to approve')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [query, setQuery] = useState('')
+  const [limit, setLimit] = useState(20)
+  const [selected, setSelected] = useState('')
+  const [plans, setPlans] = useState<InstallmentPlan[]>([])
+  const [planID, setPlanID] = useState('')
   const bank = accounts.find(a => a.type === 'bank' && a.accountName === 'ICICI') ||
     accounts.find(a => a.type === 'bank' && a.accountName === 'Main Bank Account')
   const credits = donations.filter(d => bank && d.accountID === bank.accountID && d.bankImportKey && !d.deleted && !d.collectionID)
@@ -35,6 +41,20 @@ export function MatchPayments({ rows, review, reload }: {
   })
   const suggested = new Set(reports.flatMap(r => r.possible.map(d => d.donationID)))
   const unmatched = credits.filter(d => !suggested.has(d.donationID) && !d.installmentPlanID)
+  const search = query.trim().toLowerCase()
+  const found = unmatched.filter(d => [d.donorName, d.date, formatDate(d.date), d.amount, d.transactionReference, d.receiptNumber, d.notes].some(v => String(v || '').toLowerCase().includes(search)))
+  async function chooseCredit(id: string, donorID: string) {
+    setBusy(true)
+    setSelected(id)
+    setPlanID('')
+    setPlans([])
+    setMessage('')
+    try {
+      const all = await dataService.getInstallmentPlans()
+      setPlans(all.filter(plan => plan.donorID === donorID && donorID))
+    } catch (err) { setMessage(err instanceof Error ? err.message : 'Could not load commitments.') }
+    finally { setBusy(false) }
+  }
   const visible = groups.filter(r => r.tab === tab)
   return <details className="rounded-lg border p-4">
     <summary className="cursor-pointer font-semibold">Match payments</summary>
@@ -54,7 +74,33 @@ export function MatchPayments({ rows, review, reload }: {
         finally { setBusy(false) }
       }}>Approve match</Button> : <Button variant="secondary" onClick={() => review(row)}>Review payment</Button>}</div>
     </div>)}
-    {tab === 'Waiting for a match' && unmatched.map(d => <p className="border-t py-2" key={d.donationID}>Bank credit · {d.donorName} · {formatCurrency(d.amount)} · {formatDate(d.date)} · {d.transactionReference || d.receiptNumber} · No matching collector report</p>)}
+    {tab === 'Waiting for a match' && <>
+      <h3 className="mt-4 font-semibold">Find a bank credit</h3>
+      <Input aria-label="Search bank credits" placeholder="Search by payer, amount, date or bank reference" value={query} onChange={e => { setQuery(e.target.value); setLimit(20) }} />
+      <p>{found.length} bank credits found. Link a credit only if it was paid towards a commitment.</p>
+      {found.slice(0, limit).map(d => <div className="space-y-2 border-t py-3" key={d.donationID}>
+        <strong>{d.donorName || 'Unknown payer'} · {formatCurrency(d.amount)}</strong>
+        <p>{formatDate(d.date)} · {d.transactionReference || d.receiptNumber}</p>
+        <Button variant="secondary" disabled={busy} onClick={() => void chooseCredit(d.donationID, d.donorID)}>Find donor commitment</Button>
+        {selected === d.donationID && !busy && (plans.length ? <>
+          <Select aria-label="Donor commitment" value={planID} onChange={e => setPlanID(e.target.value)}>
+            <option value="">Select the commitment this payment belongs to</option>
+            {plans.map(plan => <option key={plan.planID} value={plan.planID}>{plan.planID} · {plan.purpose}</option>)}
+          </Select>
+          <Button disabled={!planID || busy} onClick={async () => {
+            setBusy(true)
+            try {
+              await dataService.linkInstallmentPayment(planID, d.donationID)
+              await reload()
+              setSelected('')
+              setMessage('Existing receipt linked to the commitment.')
+            } catch (err) { setMessage(err instanceof Error ? err.message : 'Could not link payment.') }
+            finally { setBusy(false) }
+          }}>Link existing receipt</Button>
+        </> : <p>No commitment found for this receipt’s donor. <Link className="underline" to="/installments">Open Donor Installments</Link></p>)}
+      </div>)}
+      {found.length > limit && <Button variant="secondary" onClick={() => setLimit(limit + 20)}>Show more credits</Button>}
+    </>}
     {!visible.length && !(tab === 'Waiting for a match' && unmatched.length) && <p>No payments in this list.</p>}
   </details>
 }
