@@ -12,7 +12,7 @@ export function MatchPayments({ rows, review, reload }: {
   reload: () => Promise<void>
 }) {
   const { donations, accounts } = useApp()
-  const [tab, setTab] = useState('Ready to approve')
+  const [chosenTab, setTab] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [query, setQuery] = useState('')
@@ -55,11 +55,13 @@ export function MatchPayments({ rows, review, reload }: {
     } catch (err) { setMessage(err instanceof Error ? err.message : 'Could not load commitments.') }
     finally { setBusy(false) }
   }
+  const tabs = ['Ready to approve', 'Needs review', 'Waiting for a match', 'Bank credits']
+  const tab = chosenTab || tabs.find(t => groups.some(r => r.tab === t)) || 'Bank credits'
   const visible = groups.filter(r => r.tab === tab)
   return <details className="rounded-lg border p-4">
     <summary className="cursor-pointer font-semibold">Match payments</summary>
-    <div className="my-3 flex flex-wrap gap-2">{['Ready to approve', 'Needs review', 'Waiting for a match'].map(t =>
-      <Button key={t} variant={tab === t ? 'primary' : 'secondary'} onClick={() => setTab(t)}>{t} ({groups.filter(r => r.tab === t).length + (t === 'Waiting for a match' ? unmatched.length : 0)})</Button>)}</div>
+    <div className="my-3 flex flex-wrap gap-2">{tabs.map(t =>
+      <Button key={t} variant={tab === t ? 'primary' : 'secondary'} onClick={() => setTab(t)}>{t} ({t === 'Bank credits' ? unmatched.length : groups.filter(r => r.tab === t).length})</Button>)}</div>
     {message && <p role="status">{message}</p>}
     {visible.map(({ row, exact, possible }) => <div className="grid gap-2 border-t py-3 md:grid-cols-3" key={row.id}>
       <div><strong>{row.details.name}</strong><p>{row.collector} · {formatCurrency(Number(row.details.amount))}</p><p>{formatDate(row.details.date)} · {row.details.reference}</p></div>
@@ -74,7 +76,7 @@ export function MatchPayments({ rows, review, reload }: {
         finally { setBusy(false) }
       }}>Approve match</Button> : <Button variant="secondary" onClick={() => review(row)}>Review payment</Button>}</div>
     </div>)}
-    {tab === 'Waiting for a match' && <>
+    {tab === 'Bank credits' && <>
       <h3 className="mt-4 font-semibold">Find a bank credit</h3>
       <Input aria-label="Search bank credits" placeholder="Search by payer, amount, date or bank reference" value={query} onChange={e => { setQuery(e.target.value); setLimit(20) }} />
       <p>{found.length} bank credits found. Link a credit only if it was paid towards a commitment.</p>
@@ -101,6 +103,6 @@ export function MatchPayments({ rows, review, reload }: {
       </div>)}
       {found.length > limit && <Button variant="secondary" onClick={() => setLimit(limit + 20)}>Show more credits</Button>}
     </>}
-    {!visible.length && !(tab === 'Waiting for a match' && unmatched.length) && <p>No payments in this list.</p>}
+    {!visible.length && tab !== 'Bank credits' && <p>No payments in this list.</p>}
   </details>
 }

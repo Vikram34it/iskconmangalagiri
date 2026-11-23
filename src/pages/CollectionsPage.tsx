@@ -751,6 +751,9 @@ export function CollectionReview({ dashboard = false }: { dashboard?: boolean })
     if (view === 'materials') return row.status === 'Approved' && row.details.kind === 'materials'
     return true
   })
+  const pendingReports = rows.filter(row => row.status === 'Pending review' && (!activeCollector || collectorKey(row) === activeCollector.id))
+  const pendingPledges = pendingReports.reduce((sum, { details }) => sum + (details.kind === 'installment' && !details.planID ? Number(details.committedAmount || 0) : 0), 0)
+  const pendingPayments = pendingReports.reduce((sum, { details }) => sum + (details.kind === 'materials' ? 0 : Number(details.amount || 0)), 0)
   const cashByCollector = new Map<string, number>()
   for (const row of filtered) {
     if (view === 'cash' && !row.handover) cashByCollector.set(row.collector, (cashByCollector.get(row.collector) || 0) + Number(row.details.amount || 0))
@@ -792,12 +795,12 @@ export function CollectionReview({ dashboard = false }: { dashboard?: boolean })
           )}
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label={activeCollector ? 'Collector totals' : 'Approved collection totals across collectors'}>
             {(activeCollector ? [
-              ['Installment pledges', activeCollector.pledged],
+              ['Approved installment pledges', activeCollector.pledged],
               ['Remaining to collect', activeCollector.outstanding],
               ['Completed pledges', activeCollector.completed],
               ['Approved collector payments', activeCollector.received],
             ] as const : [
-              ['Installment pledges', overview.totals.pledged],
+              ['Approved installment pledges', overview.totals.pledged],
               ['Paid toward pledges', overview.totals.received],
               ['Remaining to collect', overview.totals.outstanding],
               ['Approved collector payments', overview.collectedPaise],
@@ -808,6 +811,10 @@ export function CollectionReview({ dashboard = false }: { dashboard?: boolean })
               </div>
             ))}
           </div>
+          {!loading && !error && pendingReports.length > 0 && <div className="rounded-lg bg-amber-50 p-3">
+            <strong>Awaiting approval · {pendingReports.length} {pendingReports.length === 1 ? 'submission' : 'submissions'}</strong>
+            <p>New pledges {formatCurrency(pendingPledges)} · Reported payments {formatCurrency(pendingPayments)}</p>
+          </div>}
           <p className="text-xs text-slate-600">
             Pledges are credited to the collector who opened the commitment, or to the first collector with an approved submission when the commitment was set up separately. Approved receipts are credited to the collector who recorded each payment.
           </p>
