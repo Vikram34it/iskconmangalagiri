@@ -24,7 +24,7 @@ export function MatchPayments({ rows, review, reload }: {
     accounts.find(a => a.type === 'bank' && a.accountName === 'Main Bank Account')
   const credits = donations.filter(d => bank && d.accountID === bank.accountID && d.bankImportKey && !d.deleted && !d.collectionID)
   const claimed = new Map<string, number>()
-  const reports = rows.filter(r => r.status === 'Pending review' && r.details.kind !== 'materials' && r.details.method !== 'Cash').map(row => {
+  const reports = rows.filter(r => r.status === 'Pending review' && r.details.kind !== 'materials' && r.details.method !== 'Cash' && Number(r.details.amount) > 0).map(row => {
     const data = row.details
     const ref = String(data.reference || '').trim().toLowerCase()
     const possible = credits.filter(d => d.amount === Number(data.amount) && (!d.donorID || d.donorID === data.donorID) &&

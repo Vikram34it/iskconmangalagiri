@@ -1828,14 +1828,18 @@ function collectionDetails_(body) {
     return data;
   }
   if (data.method === 'Cash') data.reference = '';
-  var amount = String(input.amount || '').trim();
+  var newPledge = data.kind === 'installment' && !data.planID;
+  var amount = String(input.amount == null ? '' : input.amount).trim() || (newPledge ? '0' : '');
   data.amount = Number(amount);
   var installmentAmount = data.kind === 'installment' && data.planID;
-  if (!(installmentAmount ? /^\d+(?:\.\d{1,2})?$/ : /^\d+$/).test(amount) || data.amount <= 0 || data.amount > 1000000000) {
+  if (!(installmentAmount ? /^\d+(?:\.\d{1,2})?$/ : /^\d+$/).test(amount) || (!newPledge && data.amount <= 0) || data.amount > 1000000000) {
     if (installmentAmount) throw new Error('Enter a positive installment amount with up to two decimal places.');
     throw new Error('Enter a positive whole-rupee amount up to ₹1,00,00,00,000.');
   }
-  if (!/^(one-time|installment)$/.test(data.kind) || !/^(Cash|UPI|Bank Transfer|Cheque)$/.test(data.method)) throw new Error('Choose a payment method.');
+  if (newPledge && data.amount === 0) {
+    data.method = '';
+    data.reference = '';
+  } else if (!/^(one-time|installment)$/.test(data.kind) || !/^(Cash|UPI|Bank Transfer|Cheque)$/.test(data.method)) throw new Error('Choose a payment method.');
   if (data.kind === 'installment' && data.planID) {
     var plan = getCollectionPlans_({ donorID: data.donorID }, body.id).find(function (row) { return row.id === data.planID; });
     if (!plan) throw new Error('Choose an approved commitment for this donor.');
@@ -1988,7 +1992,12 @@ function reviewCollection_(body, user) {
       })))) throw new Error('Approval has started. Retry approval to finish posting.');
   if (decision === 'Approved') {
     data.category = 'Temple Construction';
-    if (data.kind !== 'materials' && !receipt) {
+    if (data.kind === 'installment' && data.amount === 0 && !data.planID) {
+      var pledgeDonor = data.donorID ? collectionPerson_(data.donorID) : enrollCollectionDonor_(data, row.CollectionID);
+      if (!pledgeDonor) throw new Error('Choose an active donor.');
+      data.donorID = String(pledgeDonor.PersonID);
+      data.planID = collectionCreatePlan_(row.CollectionID, data, data.donorID);
+    } else if (data.kind !== 'materials' && !receipt) {
       var account = data.method === 'Cash' ? cashWithCollectors_() : collectionBankAccount_(body.accountID);
       var matched = [];
       if (data.method !== 'Cash') {

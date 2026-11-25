@@ -4,13 +4,12 @@ import { Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { DataTable, type Column } from '../components/DataTable'
-import { CollectionPhotoScan } from '../components/CollectionPhotoScan'
 import { Button, Card, Field, Input, Modal, PageHeader, Select, Textarea } from '../components/ui'
 import { CONFIG } from '../config/apiConfig'
 import { useApp } from '../context/AppContext'
 import { dataService } from '../services/apiService'
 import type { CollectionDetails, CollectionDonor, CollectionEntry, CollectionPlan } from '../types'
-import { formatCurrency, formatDate, formatDateTime, normalizePhone, parseDateInput, todayStr } from '../utils/helpers'
+import { formatCurrency, formatDate, formatDateTime, normalizePhone, todayStr } from '../utils/helpers'
 
 const sevas = ['Yudhisthra', 'Bhima', 'Arjuna', 'Nakula', 'Sahadeva']
 const constructionPurpose = 'Temple Construction'
@@ -242,7 +241,7 @@ function CollectionPrintReport({ rows, overview, breakdown }: {
   const plans = [...overview.pending, ...overview.completed].filter(plan => plan.type === 'Installment commitment')
   const money = (paise: number) => formatCurrency(paise / 100)
   const pending = rows.filter(row => row.status === 'Pending review')
-  const payments = overview.history.filter(row => row.details.kind !== 'materials')
+  const payments = overview.history.filter(row => row.details.kind !== 'materials' && Number(row.details.amount) > 0)
   const oneTime = payments.filter(row => row.details.kind === 'one-time')
   const sum = (items: CollectionEntry[]) => items.reduce((total, row) => total + Math.round(Number(row.details.amount || 0) * 100), 0)
   const table = (head: string[], body: (string | number)[][]) => <table><thead><tr>{head.map(h => <th key={h}>{h}</th>)}</tr></thead>
@@ -472,7 +471,6 @@ function CollectionForm({ entry, paymentFor, representative, onCancel, onSaved }
   const [plans, setPlans] = useState<CollectionPlan[]>([])
   const [loadedDonorID, setLoadedDonorID] = useState('')
   const [enrolling, setEnrolling] = useState(Boolean(entry && !entry.details.donorID))
-  const [scanNotice, setScanNotice] = useState('')
   const [searched, setSearched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -484,6 +482,7 @@ function CollectionForm({ entry, paymentFor, representative, onCancel, onSaved }
   const existingCommitment = Boolean(data.planID && data.planID !== newCommitment)
   const startingCommitment = data.planID === newCommitment || (!data.planID && plansReady && !openPlans.length)
   const available = plan?.availableToRecord ?? plan?.outstanding ?? 0
+  const newPledge = data.kind === 'installment' && startingCommitment
   const amountReceived = Number(data.amount || 0)
 
   useEffect(() => {
@@ -500,29 +499,6 @@ function CollectionForm({ entry, paymentFor, representative, onCancel, onSaved }
 
   function change(key: keyof CollectionDetails, value: string) {
     setData((previous) => ({ ...previous, [key]: value }))
-  }
-
-  function applyScan({ paperAmount, category: _scannedPurpose, ...draft }: Awaited<ReturnType<typeof dataService.scanCollectionForm>>) {
-    if (draft.seva && !sevas.includes(draft.seva)) delete draft.seva
-    if (draft.method && !methods.includes(draft.method)) delete draft.method
-    if (draft.kind && !['one-time', 'installment', 'materials'].includes(draft.kind)) delete draft.kind
-    if (draft.mailing && !['Residence', 'Office'].includes(draft.mailing)) delete draft.mailing
-    if (draft.delivery && !['Promised', 'Delivered'].includes(draft.delivery)) delete draft.delivery
-    for (const key of ['date', 'firstDue', 'prayerDate1', 'prayerDate2'] as const) {
-      const date = parseDateInput(draft[key] || '')
-      if (date) draft[key] = date
-      else delete draft[key]
-    }
-    setData((previous) => previous.donorID ? previous : { ...previous, method: '', ...draft })
-    if (draft.phone || draft.name) {
-      setQuery(draft.phone || draft.name || '')
-      setResults([])
-      setSearched(false)
-    }
-    setEnrolling(true)
-    setError('')
-    setScanNotice((paperAmount ? 'Donation amount written on the form: ' + paperAmount + '. ' : '') +
-      'Check the draft against the paper form. Enter Aadhaar and PAN manually for new donors, and verify the contribution type, date, amount and payment method.')
   }
 
   function field(label: string, key: keyof CollectionDetails, options: React.ComponentProps<typeof Input> = {}) {
@@ -544,10 +520,10 @@ function CollectionForm({ entry, paymentFor, representative, onCancel, onSaved }
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    const amount = String(data.amount ?? '').trim()
+    const amount = String(data.amount ?? '').trim() || (newPledge ? '0' : '')
     const committedAmount = (data.committedAmount ?? '').trim()
     const againstCommitment = data.kind === 'installment' && existingCommitment
-    if (data.kind !== 'materials' && (!(againstCommitment ? installmentAmountPattern : amountPattern).test(amount) || Number(amount) <= 0)) {
+    if (data.kind !== 'materials' && (!(againstCommitment ? installmentAmountPattern : amountPattern).test(amount) || (!newPledge && Number(amount) <= 0))) {
       setError(againstCommitment ? 'Enter the amount received, with up to two decimal places.' : 'Enter the amount received in whole rupees, such as 10000.')
       return
     }
@@ -583,8 +559,6 @@ function CollectionForm({ entry, paymentFor, representative, onCancel, onSaved }
             <Button type="button" variant="secondary" disabled={busy} onClick={onCancel}>Cancel</Button>
           </div>
           {entry?.note && <p className="rounded-lg bg-amber-50 p-3 text-sm">{entry.note}</p>}
-          {!donorSelected && <CollectionPhotoScan disabled={busy} onScan={applyScan} />}
-          {scanNotice && <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm">{scanNotice}</p>}
           {donorSelected ? (
             <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-3">
               <span className="font-medium">{data.name}</span>
@@ -718,16 +692,16 @@ function CollectionForm({ entry, paymentFor, representative, onCancel, onSaved }
                 </>
               ) : (
                 <>
-                  {field('Amount received (₹)', 'amount',
-                    { required: true, inputMode: data.kind === 'installment' && existingCommitment ? 'decimal' : 'numeric', placeholder: '10000' })}
+                  {field(newPledge ? 'Paid today (leave blank if paying later)' : 'Amount received', 'amount',
+                    { required: !newPledge, inputMode: data.kind === 'installment' && existingCommitment ? 'decimal' : 'numeric', placeholder: newPledge ? '0' : '10000' })}
                   {paymentFor && Number(paymentFor.details.amount) > 0 && <Button type="button" variant="secondary" onClick={() => change('amount', String(paymentFor.details.amount))}>Use last payment amount · {formatCurrency(Number(paymentFor.details.amount))}</Button>}
-                  <Field label="Payment method" required>
+                  {(!newPledge || amountReceived > 0) && <Field label="Payment method" required>
                     <Select required value={data.method} onChange={(e) => change('method', e.target.value)}>
                       <option value="">Select payment method</option>
                       {methods.map((method) => <option key={method}>{method}</option>)}
                     </Select>
-                  </Field>
-                  {data.method && data.method !== 'Cash' && <details className="sm:col-span-2"><summary className="cursor-pointer">Add bank reference (optional)</summary>{field('Bank reference', 'reference', { maxLength: 120 })}</details>}
+                  </Field>}
+                  {(!newPledge || amountReceived > 0) && data.method && data.method !== 'Cash' && <details className="sm:col-span-2"><summary className="cursor-pointer">Add bank reference (optional)</summary>{field('Bank reference', 'reference', { maxLength: 120 })}</details>}
                 </>
               )}
             </div>
@@ -998,6 +972,7 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
   const data = row.details
   const pending = row.status === 'Pending review'
   const materials = data.kind === 'materials'
+  const pledgeOnly = data.kind === 'installment' && Number(data.amount) === 0
   const cash = !materials && data.method === 'Cash'
   const handover = cash && row.status === 'Approved' && !row.handover
   const receive = materials && row.status === 'Approved' && data.delivery === 'Promised'
@@ -1046,7 +1021,7 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
     <div className="space-y-4">
       <CollectionRecordDetails row={row} />
       {row.status !== 'Cancelled' && <CollectionMessage row={row} />}
-      {((pending && !materials && !cash) || handover) && (
+      {((pending && !materials && !cash && !pledgeOnly) || handover) && (
         <Field label={handover ? 'Destination account' : 'Bank account'} required>
           <Select value={accountID} onChange={(e) => { setAccountID(e.target.value); setConfirmed(false) }}>
             <option value="">Select account</option>
@@ -1054,13 +1029,13 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
           </Select>
         </Field>
       )}
-      {pending && !cash && !materials && !data.donorID && <Field label="Is this donor already in People?">
+      {pending && !cash && !materials && !pledgeOnly && !data.donorID && <Field label="Is this donor already in People?">
         <Select value={existingDonorID} onChange={e => { setExistingDonorID(e.target.value); setPaymentSource(''); setConfirmed(false) }}>
           <option value="">Use the new donor enrollment</option>
           {people.filter(p => p.personType.includes('Donor') && p.status === 'active').map(p => <option key={p.personID} value={p.personID}>{p.name} · {p.phone || p.personID}</option>)}
         </Select>
       </Field>}
-      {!materials && !cash && (pending || row.status === 'Approved') && (
+      {!materials && !cash && !pledgeOnly && (pending || row.status === 'Approved') && (
         <Field label={pending ? 'Match imported bank credit' : 'Correct a payment counted twice'}>
           {linkedBankReceipt ? <p>Already linked to bank receipt {linkedBankReceipt.receiptNumber}.</p>
             : !imported.length ? <div className="space-y-2">
@@ -1081,7 +1056,7 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
           </>}
         </Field>
       )}
-      {pending && !materials && !cash && <label className="flex gap-2 text-sm">
+      {pending && !materials && !cash && !pledgeOnly && <label className="flex gap-2 text-sm">
         <input type="checkbox" disabled={!imported.some(d => d.donationID === paymentSource)} checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
         I checked the selected bank receipt and amount.
       </label>}
@@ -1089,7 +1064,7 @@ function CollectionDecision({ row, onSaved }: { row: CollectionEntry; onSaved: (
         <>
           <Field label="Review note" hint="Required when returning or rejecting a collection."><Input value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} /></Field>
           <div className="flex flex-wrap gap-2">
-            <Button disabled={busy || (!materials && !cash && (!accountID || !confirmed || !imported.some(d => d.donationID === paymentSource)))} onClick={() => save(() => dataService.reviewCollection(row.id, 'Approved', note, accountID, confirmed, paymentSource || undefined, false, existingDonorID || undefined))}>Approve</Button>
+            <Button disabled={busy || (!materials && !cash && !pledgeOnly && (!accountID || !confirmed || !imported.some(d => d.donationID === paymentSource)))} onClick={() => save(() => dataService.reviewCollection(row.id, 'Approved', note, accountID, confirmed, paymentSource || undefined, false, existingDonorID || undefined))}>Approve</Button>
             <Button variant="secondary" disabled={busy || !note.trim()} onClick={() => save(() => dataService.reviewCollection(row.id, 'Needs correction', note, '', false))}>Return for correction</Button>
             <Button variant="secondary" disabled={busy || !note.trim()} onClick={() => save(() => dataService.reviewCollection(row.id, 'Rejected', note, '', false))}>Reject</Button>
           </div>
